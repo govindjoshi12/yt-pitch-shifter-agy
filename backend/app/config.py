@@ -28,31 +28,43 @@ YOUTUBE_PROXY = os.getenv("YOUTUBE_PROXY") or os.getenv("HTTP_PROXY") or os.gete
 def get_cookies_file_path() -> Optional[Path]:
     """
     Resolves the cookies.txt path for yt-dlp.
-    Supports:
-    1. YOUTUBE_COOKIES_FILE env var
-    2. Render Secret File at /etc/secrets/cookies.txt
-    3. cookies.txt in backend/ or root/
-    4. YOUTUBE_COOKIES_BASE64 env var
-    5. YOUTUBE_COOKIES env var (raw text)
+    Ensures the target file is ALWAYS located on a writable filesystem,
+    because yt-dlp attempts to write updated session cookies back to disk.
+    (Fixes [Errno 30] Read-only file system on Render /etc/secrets mounts).
     """
+    writable_target = CACHE_DIR / "cookies.txt"
+
+    def _to_writable(source_path: Path) -> Path:
+        try:
+            shutil.copyfile(source_path, writable_target)
+            return writable_target
+        except Exception as e:
+            logger.warning(f"Could not copy cookies to cache dir, trying /tmp: {e}")
+            tmp_target = Path("/tmp/yt_cookies.txt")
+            try:
+                shutil.copyfile(source_path, tmp_target)
+                return tmp_target
+            except Exception as e2:
+                logger.error(f"Failed to copy cookies to writable location: {e2}")
+                return source_path
+
     # 1. Explicit environment path
     env_path = os.getenv("YOUTUBE_COOKIES_FILE")
     if env_path and Path(env_path).exists():
-        return Path(env_path)
+        return _to_writable(Path(env_path))
 
-    # 2. Render Secret Files standard path
+    # 2. Render Secret Files standard path (mounted read-only at /etc/secrets/cookies.txt)
     render_secret = Path("/etc/secrets/cookies.txt")
     if render_secret.exists():
-        return render_secret
+        return _to_writable(render_secret)
 
     # 3. Base64 environment variable (prevents newline corruption in Render dashboard)
     b64_cookies = os.getenv("YOUTUBE_COOKIES_BASE64")
     if b64_cookies:
         try:
             decoded = base64.b64decode(b64_cookies.strip()).decode("utf-8")
-            cookie_file = CACHE_DIR / "cookies.txt"
-            cookie_file.write_text(decoded, encoding="utf-8")
-            return cookie_file
+            writable_target.write_text(decoded, encoding="utf-8")
+            return writable_target
         except Exception as e:
             logger.warning(f"Failed to decode YOUTUBE_COOKIES_BASE64: {e}")
 
@@ -60,9 +72,8 @@ def get_cookies_file_path() -> Optional[Path]:
     raw_cookies = os.getenv("YOUTUBE_COOKIES")
     if raw_cookies:
         try:
-            cookie_file = CACHE_DIR / "cookies.txt"
-            cookie_file.write_text(raw_cookies, encoding="utf-8")
-            return cookie_file
+            writable_target.write_text(raw_cookies, encoding="utf-8")
+            return writable_target
         except Exception as e:
             logger.warning(f"Failed to write YOUTUBE_COOKIES: {e}")
 
