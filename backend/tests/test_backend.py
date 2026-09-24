@@ -52,3 +52,17 @@ def test_pitch_bounds_validation():
 
     response = client.get("/api/download?video_id=fake&pitch=-13")
     assert response.status_code == 422 # Validation error for < -12
+
+def test_cookies_resolution_from_env(monkeypatch):
+    import base64
+    from app.config import get_cookies_file_path, CACHE_DIR
+
+    fake_cookie_content = "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t2147483647\tTEST\t123"
+    b64_content = base64.b64encode(fake_cookie_content.encode("utf-8")).decode("utf-8")
+    
+    monkeypatch.setenv("YOUTUBE_COOKIES_BASE64", b64_content)
+    cookie_path = get_cookies_file_path()
+    assert cookie_path is not None
+    assert cookie_path.exists()
+    assert cookie_path.read_text(encoding="utf-8") == fake_cookie_content
+

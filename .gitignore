@@ -6,3 +6,5 @@ backend/cache/
 .pytest_cache/
 *.tmp.mp3
 .DS_Store
+*cookies*.txt
+cookies.txt

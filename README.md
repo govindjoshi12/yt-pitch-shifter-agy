@@ -111,6 +111,38 @@ Interactive Swagger documentation is available at: **`http://localhost:8000/docs
 
 ---
 
+## ☁️ Deploying to Render / Cloud Platforms (Bypassing YouTube Bot Check)
+
+YouTube automatically flags requests coming from cloud hosting IP ranges (Render, AWS, DigitalOcean, etc.) with:
+> `Sign in to confirm you’re not a bot. Use --cookies-from-browser or --cookies for the authentication.`
+
+This codebase supports two methods to resolve this:
+
+### Option 1: Render Secret Files (Recommended)
+1. In your browser (Chrome/Firefox/Brave), install an extension like **[Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc)** or **Cookie-Editor**.
+2. Go to [youtube.com](https://www.youtube.com) (make sure you are logged in).
+3. Open the extension, export cookies in **Netscape format**, and save as `cookies.txt`.
+4. In your Render Dashboard for this Web Service:
+   - Go to **Environment** -> **Secret Files**.
+   - Click **Add Secret File**.
+   - Filename: `cookies.txt` (Render mounts this at `/etc/secrets/cookies.txt`).
+   - Paste the contents of your `cookies.txt` and save.
+5. Redeploy your service. The application automatically detects `/etc/secrets/cookies.txt`.
+
+### Option 2: Base64 Environment Variable
+If you prefer using Environment Variables:
+1. Base64-encode your `cookies.txt` locally in terminal:
+   ```bash
+   cat cookies.txt | base64 | tr -d '\n' | pbcopy
+   ```
+2. In the Render Dashboard, add an Environment Variable:
+   - Key: `YOUTUBE_COOKIES_BASE64`
+   - Value: *(paste the base64 string)*
+3. Save and redeploy. The app decodes the cookies into the temporary cache directory automatically.
+
+---
+
+
 ## 🧪 Testing
 
 Run the automated integration and unit test suite:
