@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube Pitch Shifter & MP3 Downloader</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <header class="header">
+      <div class="logo">
+        <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 18V5l12-2v13"></path>
+          <circle cx="6" cy="18" r="3"></circle>
+          <circle cx="18" cy="16" r="3"></circle>
+        </svg>
+        <h1>PitchShift<span>YT</span></h1>
+      </div>
+      <p class="tagline">Transpose YouTube audio in real-time without changing tempo, then download as high-fidelity MP3.</p>
+    </header>
+
+    <main class="main-content">
+      <!-- Search / Input Card -->
+      <section class="card input-card">
+        <form id="urlForm" class="url-form">
+          <div class="input-wrapper">
+            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input 
+              type="text" 
+              id="youtubeUrl" 
+              placeholder="Paste YouTube link (e.g. https://www.youtube.com/watch?v=...)" 
+              autocomplete="off"
+              spellcheck="false"
+              required
+            >
+            <button type="button" id="clearBtn" class="clear-btn" aria-label="Clear input" hidden>&times;</button>
+          </div>
+          <button type="submit" id="loadBtn" class="primary-btn">
+            <span>Load Audio</span>
+          </button>
+        </form>
+
+        <!-- Loading indicator -->
+        <div id="loadingState" class="status-container" hidden>
+          <progress aria-label="Loading audio" class="loading-spinner"></progress>
+          <p id="loadingText" class="status-text">Fetching YouTube metadata...</p>
+        </div>
+
+        <!-- Error display -->
+        <div id="errorState" class="error-banner" hidden>
+          <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <span id="errorMessage">Something went wrong. Please check your URL.</span>
+        </div>
+      </section>
+
+      <!-- Player & Pitch Shifter Section -->
+      <section id="playerCard" class="card player-card" hidden>
+        <!-- Video Details -->
+        <div class="video-info">
+          <div class="thumbnail-wrapper">
+            <img id="videoThumb" src="" alt="Video thumbnail" loading="lazy">
+            <span id="videoDuration" class="duration-badge">0:00</span>
+          </div>
+          <div class="video-details">
+            <h2 id="videoTitle">Video Title</h2>
+            <p id="videoUploader" class="uploader-name">Channel Name</p>
+          </div>
+        </div>
+
+        <!-- Pitch Transposition Controls -->
+        <div class="pitch-control-section">
+          <div class="pitch-header">
+            <span class="section-label">Pitch Transposition</span>
+            <span id="pitchInterval" class="interval-badge">Original Key (0 st)</span>
+          </div>
+
+          <div class="stepper-box">
+            <button type="button" id="pitchDownBtn" class="stepper-btn" aria-label="Transpose down 1 semitone">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </button>
+
+            <div class="pitch-display">
+              <span id="pitchValue" class="pitch-number">0</span>
+              <span class="pitch-unit">semitones</span>
+            </div>
+
+            <button type="button" id="pitchUpBtn" class="stepper-btn" aria-label="Transpose up 1 semitone">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </button>
+          </div>
+
+          <div class="pitch-helpers">
+            <span class="limit-label">-12 st (Octave Down)</span>
+            <button type="button" id="pitchResetBtn" class="text-btn">Reset (0)</button>
+            <span class="limit-label">+12 st (Octave Up)</span>
+          </div>
+        </div>
+
+        <!-- Audio Player Controls -->
+        <div class="audio-controls-section">
+          <div class="scrubber-row">
+            <span id="currentTime" class="time-display">0:00</span>
+            <input type="range" id="seekSlider" class="seek-slider" min="0" max="100" value="0" step="0.1">
+            <span id="totalTime" class="time-display">0:00</span>
+          </div>
+
+          <div class="controls-toolbar">
+            <div class="left-controls">
+              <button type="button" id="playPauseBtn" class="play-btn" aria-label="Play">
+                <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor">
+                  <polygon points="6 3 20 12 6 21 6 3"></polygon>
+                </svg>
+                <svg id="pauseIcon" viewBox="0 0 24 24" fill="currentColor" hidden>
+                  <rect x="6" y="4" width="4" height="16"></rect>
+                  <rect x="14" y="4" width="4" height="16"></rect>
+                </svg>
+              </button>
+              <span id="playerStateText" class="state-text">Ready to preview</span>
+            </div>
+
+            <div class="volume-control">
+              <button type="button" id="muteBtn" class="icon-btn" aria-label="Mute/Unmute">
+                <svg id="volumeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                </svg>
+              </button>
+              <input type="range" id="volumeSlider" class="volume-slider" min="0" max="1" step="0.05" value="1">
+            </div>
+          </div>
+        </div>
+
+        <!-- Download Action -->
+        <div class="download-section">
+          <button type="button" id="downloadBtn" class="download-btn">
+            <svg class="download-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span id="downloadBtnText">Download MP3 (Original)</span>
+          </button>
+          <p class="download-hint">Rendered with studio-grade Rubber Band DSP on backend</p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>YouTube to MP3 Pitch Shifter &bull; Real-time Browser DSP + Backend Studio Processing</p>
+    </footer>
+  </div>
+
+  <script src="tone.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
