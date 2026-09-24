@@ -28,27 +28,24 @@ def _get_ydl_base_opts(use_cookies: bool = False) -> Dict[str, Any]:
         opts["proxy"] = YOUTUBE_PROXY
         logger.info("Using configured proxy for YouTube extraction")
 
-    # JavaScript runtime for signature challenges
+    # JavaScript runtime if available
     if NODE_PATH and os.path.exists(NODE_PATH):
         opts["js_runtimes"] = {"node": {"path": NODE_PATH}}
 
-    # Cookie and Player Client Configuration
-    cookies_path = get_cookies_file_path() if use_cookies else None
-    if cookies_path and cookies_path.exists():
-        opts["cookiefile"] = str(cookies_path)
-        logger.info(f"Using cookies file: {cookies_path}")
-        opts["extractor_args"] = {
-            "youtube": {
-                "player_client": ["web", "mweb", "android"],
-            }
+    # Use android and visionos clients:
+    # They do NOT require desktop JavaScript challenges or GVS PO-Tokens,
+    # preventing 'Requested format is not available' errors on cloud hosting (Render/AWS).
+    opts["extractor_args"] = {
+        "youtube": {
+            "player_client": ["android", "visionos"],
         }
-    else:
-        # visionos client bypasses YouTube bot detection and PO-token challenges without cookies
-        opts["extractor_args"] = {
-            "youtube": {
-                "player_client": ["visionos", "web"],
-            }
-        }
+    }
+
+    if use_cookies:
+        cookies_path = get_cookies_file_path()
+        if cookies_path and cookies_path.exists():
+            opts["cookiefile"] = str(cookies_path)
+            logger.info(f"Using cookies file: {cookies_path}")
 
     return opts
 
@@ -59,8 +56,12 @@ def _handle_yt_error(e: Exception, action: str) -> None:
     if "confirm you’re not a bot" in err_msg or "confirm you're not a bot" in err_msg or "Sign in to confirm" in err_msg:
         raise ValueError(
             "YouTube bot verification triggered on this server. "
-            "Fix: The visionos client is automatically used, but if this video requires authentication, "
-            "provide cookies via /etc/secrets/cookies.txt or YOUTUBE_COOKIES_BASE64."
+            "Please ensure you're using the latest deployment with mobile client extractors."
+        )
+    if "Requested format is not available" in err_msg:
+        raise ValueError(
+            "YouTube could not provide the requested audio format for this video on this server. "
+            "Retrying or using a different link usually resolves this."
         )
     raise ValueError(f"Failed to {action}: {err_msg}")
 
@@ -123,11 +124,12 @@ def _extract_metadata_with_opts(url: str, use_cookies: bool = False) -> Dict[str
 def get_video_metadata(url: str) -> Dict[str, Any]:
     """
     Fetches video metadata without downloading the full audio stream.
-    Tries visionos client first (cookie-free bot bypass), falls back to cookies if configured.
+    Tries android/visionos clients first (cookie-free bot bypass), falls back to cookies if configured.
     """
     try:
         return _extract_metadata_with_opts(url, use_cookies=False)
     except Exception as e:
+        logger.warning(f"Initial metadata extraction without cookies failed: {e}")
         if get_cookies_file_path():
             logger.info("Attempting metadata extraction with cookies fallback...")
             try:
@@ -197,7 +199,7 @@ def download_audio_track(url_or_id: str) -> Dict[str, Any]:
     """
     Downloads and extracts original audio as MP3 if not already in cache.
     Returns metadata dict including the path to the MP3 file.
-    Tries visionos client first (bypasses cloud IP bot check without cookies),
+    Tries android/visionos clients first (bypasses cloud IP bot check without cookies),
     then falls back to cookies if needed.
     """
     video_id = extract_video_id(url_or_id) or url_or_id
@@ -212,10 +214,11 @@ def download_audio_track(url_or_id: str) -> Dict[str, Any]:
 
     download_url = f"https://www.youtube.com/watch?v={video_id}" if len(video_id) == 11 else url_or_id
 
-    # 1. Try with visionos client (bypasses bot challenges on cloud IPs)
+    # 1. Try with android/visionos client (bypasses bot challenges and format missing issues)
     try:
         return _download_with_opts(download_url, video_id, use_cookies=False)
     except Exception as e:
+        logger.warning(f"Initial audio download without cookies failed: {e}")
         # 2. If failed and cookies are present, retry with cookies
         if get_cookies_file_path():
             logger.info("Attempting audio download with cookies fallback...")
